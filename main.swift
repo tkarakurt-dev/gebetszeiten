@@ -17,6 +17,7 @@ enum Vakit: Int, CaseIterable {
     case imsak, gunes, ogle, ikindi, aksam, yatsi
     var tr: String { ["İmsak", "Güneş", "Öğle", "İkindi", "Akşam", "Yatsı"][rawValue] }
     var ar: String { ["Fajr", "Shuruq", "Dhuhr", "Asr", "Maghrib", "Isha"][rawValue] }
+    var arab: String { ["الفجر", "الشروق", "الظهر", "العصر", "المغرب", "العشاء"][rawValue] }
     var de: String { ["Morgen", "Sonnenaufgang", "Mittag", "Nachmittag", "Abend", "Nacht"][rawValue] }
 
     /// Name in der gewählten Schreibweise
@@ -24,6 +25,7 @@ enum Vakit: Int, CaseIterable {
         switch nameStyle {
         case .tr: return tr
         case .ar: return ar
+        case .arab: return arab
         case .de: return de
         }
     }
@@ -33,10 +35,16 @@ enum Vakit: Int, CaseIterable {
 
 /// Wie die Gebete heißen: türkisch (İkindi, Akşam), arabisch (Asr, Maghrib) oder deutsch
 enum NameStyle: String, CaseIterable {
-    case tr, ar, de
-    var label: String { ["tr": "Türkisch", "ar": "Arabisch", "de": "Deutsch"][rawValue]! }
+    case tr, ar, arab, de
+    var label: String { ["tr": "Türkisch (Akşam)", "ar": "Arabisch, Umschrift (Maghrib)", "arab": "Arabisch, Schrift (المغرب)", "de": "Deutsch (Abend)"][rawValue]! }
     /// Wort für die Zeiten ohne Gebet
-    var kerahat: String { self == .ar ? "Makruh" : "Kerahat" }
+    var kerahat: String {
+        switch self {
+        case .ar: return "Makruh"
+        case .arab: return "مكروه"
+        default: return "Kerahat"
+        }
+    }
 }
 
 var nameStyle = NameStyle(rawValue: UserDefaults.standard.string(forKey: "names") ?? "") ?? .tr
@@ -167,6 +175,8 @@ final class Store: ObservableObject {
     /// Stadt automatisch aus dem Standort bestimmen
     @Published var autoLocation: Bool { didSet { UserDefaults.standard.set(autoLocation, forKey: "autoLocation") } }
     @Published var locationNote: String?
+    /// Platz unter der Menüleiste, damit das Fenster nie länger als der Bildschirm wird
+    @Published var maxHeight: CGFloat = 2000
     @Published var names: NameStyle = nameStyle {
         didSet { nameStyle = names; UserDefaults.standard.set(names.rawValue, forKey: "names") }
     }
@@ -415,7 +425,29 @@ struct ContentView: View {
     var body: some View {
         VStack(spacing: 10) {
             header
-            if pickerOpen { cityPicker.transition(.opacity) }
+            // Passt alles auf den Bildschirm, wird nichts gescrollt; sonst scrollt der Mittelteil
+            ViewThatFits(in: .vertical) {
+                middle
+                ScrollViewReader { proxy in
+                    ScrollView(.vertical, showsIndicators: true) { middle }
+                        .onChange(of: settingsOpen) { open in
+                            if open { withAnimation { proxy.scrollTo("settings", anchor: .bottom) } }
+                        }
+                        .onChange(of: pickerOpen) { open in
+                            if open { withAnimation { proxy.scrollTo("picker", anchor: .top) } }
+                        }
+                }
+            }
+            footer
+        }
+        .padding(14)
+        .frame(width: 340)
+        .frame(maxHeight: s.maxHeight)
+    }
+
+    private var middle: some View {
+        VStack(spacing: 10) {
+            if pickerOpen { cityPicker.id("picker").transition(.opacity) }
             heroTile
             prayerGrid
             kerahatTile
@@ -423,17 +455,14 @@ struct ContentView: View {
                 Label(err, systemImage: "wifi.exclamationmark").font(.caption).foregroundStyle(.secondary)
             }
             if let info = u.available { updateTile(info) }
-            if settingsOpen { settingsTile.transition(.opacity) }
-            footer
+            if settingsOpen { settingsTile.id("settings").transition(.opacity) }
         }
-        .padding(14)
-        .frame(width: 340)
     }
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
             Button {
-                withAnimation(.spring(duration: 0.3)) { pickerOpen.toggle(); query = "" }
+                withAnimation(.spring(duration: 0.3)) { pickerOpen.toggle(); query = ""; if pickerOpen { settingsOpen = false } }
             } label: {
                 HStack(spacing: 5) {
                     if s.autoLocation { Image(systemName: "location.fill").font(.system(size: 11)) }
@@ -571,8 +600,7 @@ struct ContentView: View {
                 Picker("Namen", selection: $s.names) {
                     ForEach(NameStyle.allCases, id: \.self) { Text($0.label).tag($0) }
                 }
-                .pickerStyle(.segmented)
-                Text("z. B. \(Vakit.ikindi.name), \(Vakit.aksam.name)").font(.caption).foregroundStyle(.secondary)
+                .pickerStyle(.menu)
                 Stepper("\(s.names.kerahat) nach Sonnenaufgang: \(s.kSunrise) min", value: $s.kSunrise, in: 0...90, step: 5)
                 Stepper("\(s.names.kerahat) vor \(Vakit.ogle.name): \(s.kNoon) min", value: $s.kNoon, in: 0...90, step: 5)
                 Stepper("\(s.names.kerahat) vor \(Vakit.aksam.name): \(s.kSunset) min", value: $s.kSunset, in: 0...90, step: 5)
@@ -603,7 +631,7 @@ struct ContentView: View {
                     .disabled(s.loading)
                 Spacer()
                 Button {
-                    withAnimation(.spring(duration: 0.3)) { settingsOpen.toggle() }
+                    withAnimation(.spring(duration: 0.3)) { settingsOpen.toggle(); if settingsOpen { pickerOpen = false } }
                 } label: {
                     Text(settingsOpen ? "Fertig" : "Einstellungen")
                         .font(.system(size: 13, weight: .medium))
@@ -903,9 +931,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func fitPanel() {
         guard let hv = hostView, let b = item.button, let bw = b.window else { return }
-        let size = hv.fittingSize
         let anchor = bw.convertToScreen(b.convert(b.bounds, to: nil))
         let screen = bw.screen?.visibleFrame ?? NSScreen.main!.visibleFrame
+        let room = max(300, anchor.minY - 6 - screen.minY - 10)
+        if abs(store.maxHeight - room) > 0.5 { store.maxHeight = room; hv.layoutSubtreeIfNeeded() }
+        var size = hv.fittingSize
+        size.height = min(size.height, room)
         var x = anchor.midX - size.width / 2
         x = min(max(x, screen.minX + 8), screen.maxX - size.width - 8)
         let top = anchor.minY - 6
