@@ -1,7 +1,7 @@
 {
-  "build": 5,
-  "version": "1.4",
-  "url": "https://raw.githubusercontent.com/tkarakurt-dev/gebetszeiten/main/release/Gebetszeiten.zip",
-  "sha256": "c92338a5e955b93367d0902086ae0d81dbdd5c100cfe6c23e63ea1b40e693369",
-  "notes": "Sprache wählbar: Deutsch, Türkçe, English, العربية"
+  "build": 6,
+  "version": "1.5",
+  "url": "https://github.com/tkarakurt-dev/gebetszeiten/releases/download/v1.5/Gebetszeiten.zip",
+  "sha256": "791f5e090315b0a0387bd119206848d8ecbdddaf86f416094057433d14eb5ea5",
+  "notes": "Downloads werden gezählt, Englisch als Standard für andere Systemsprachen"
 }

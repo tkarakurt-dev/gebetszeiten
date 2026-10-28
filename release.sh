@@ -15,8 +15,12 @@ if [ "$BUILD" -le "$LAST" ]; then echo "CFBundleVersion ($BUILD) muss größer s
 
 # Token einmalig ablegen mit:
 #   security add-generic-password -a tkarakurt-dev -s gebetszeiten-github -w
-TOKEN=$(security find-generic-password -a tkarakurt-dev -s gebetszeiten-github -w 2>/dev/null) || {
-    echo "Kein GitHub-Token im Schlüsselbund (Dienst gebetszeiten-github)."; exit 1; }
+# (oder in Schlüsselbundverwaltung bzw. der App "Passwörter" unter dem Namen gebetszeiten-github)
+TOKEN=$(security find-generic-password -s gebetszeiten-github -w 2>/dev/null \
+     || security find-internet-password -s gebetszeiten-github -w 2>/dev/null \
+     || security find-generic-password -l gebetszeiten-github -w 2>/dev/null \
+     || security find-internet-password -l gebetszeiten-github -w 2>/dev/null) || {
+    echo "Kein GitHub-Token im Schlüsselbund (Name gebetszeiten-github)."; exit 1; }
 api() { curl -sS -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github+json" "$@"; }
 
 ./share.sh
