@@ -1,7 +1,7 @@
 {
-  "build": 2,
-  "version": "1.1",
+  "build": 3,
+  "version": "1.2",
   "url": "https://raw.githubusercontent.com/tkarakurt-dev/gebetszeiten/main/release/Gebetszeiten.zip",
-  "sha256": "e419bee741589c7c408834b5c4b849e94c9cf1a700074e6fa230beb8f4f5d849",
-  "notes": "Standort und Stadtwahl, automatische Updates"
+  "sha256": "2dd1b4016252ec5886b3f35d24f147ff554034b3be761234db4f526fa6e43471",
+  "notes": "Namen wählbar: Türkisch, Arabisch (Maghrib, Asr) oder Deutsch"
 }

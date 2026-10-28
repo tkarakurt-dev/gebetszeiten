@@ -16,8 +16,30 @@ let apiURL = URL(string: "https://www.igmg.org/wp-content/themes/igmg/include/ge
 enum Vakit: Int, CaseIterable {
     case imsak, gunes, ogle, ikindi, aksam, yatsi
     var tr: String { ["İmsak", "Güneş", "Öğle", "İkindi", "Akşam", "Yatsı"][rawValue] }
+    var ar: String { ["Fajr", "Shuruq", "Dhuhr", "Asr", "Maghrib", "Isha"][rawValue] }
     var de: String { ["Morgen", "Sonnenaufgang", "Mittag", "Nachmittag", "Abend", "Nacht"][rawValue] }
+
+    /// Name in der gewählten Schreibweise
+    var name: String {
+        switch nameStyle {
+        case .tr: return tr
+        case .ar: return ar
+        case .de: return de
+        }
+    }
+    /// Zweitname in Klein (Deutsch, bei deutscher Auswahl der türkische)
+    var hint: String { nameStyle == .de ? tr : de }
 }
+
+/// Wie die Gebete heißen: türkisch (İkindi, Akşam), arabisch (Asr, Maghrib) oder deutsch
+enum NameStyle: String, CaseIterable {
+    case tr, ar, de
+    var label: String { ["tr": "Türkisch", "ar": "Arabisch", "de": "Deutsch"][rawValue]! }
+    /// Wort für die Zeiten ohne Gebet
+    var kerahat: String { self == .ar ? "Makruh" : "Kerahat" }
+}
+
+var nameStyle = NameStyle(rawValue: UserDefaults.standard.string(forKey: "names") ?? "") ?? .tr
 
 struct Event { let vakit: Vakit; let date: Date }
 
@@ -145,6 +167,9 @@ final class Store: ObservableObject {
     /// Stadt automatisch aus dem Standort bestimmen
     @Published var autoLocation: Bool { didSet { UserDefaults.standard.set(autoLocation, forKey: "autoLocation") } }
     @Published var locationNote: String?
+    @Published var names: NameStyle = nameStyle {
+        didSet { nameStyle = names; UserDefaults.standard.set(names.rawValue, forKey: "names") }
+    }
 
     // Kerahat-Fenster in Minuten (Standard nach Diyanet/IGMG-Praxis: ca. 45 Minuten)
     @Published var kSunrise: Int { didSet { UserDefaults.standard.set(kSunrise, forKey: "kSunrise") } }
@@ -245,7 +270,7 @@ final class Store: ObservableObject {
         let m = { (min: Int) in TimeInterval(min * 60) }
         return [
             Kerahat(label: "nach Sonnenaufgang", start: e[1].date, end: e[1].date + m(kSunrise)),
-            Kerahat(label: "vor Öğle (Istiwa)", start: e[2].date - m(kNoon), end: e[2].date),
+            Kerahat(label: "vor \(Vakit.ogle.name) (Istiwa)", start: e[2].date - m(kNoon), end: e[2].date),
             Kerahat(label: "vor Sonnenuntergang", start: e[4].date - m(kSunset), end: e[4].date),
         ]
     }
@@ -269,26 +294,26 @@ final class Store: ObservableObject {
 
     /// Worauf der Countdown läuft. Kommt vor dem nächsten Gebet eine Kerahat,
     /// läuft er bis zu deren Beginn (z. B. in der İkindi-Zeit bis zur Kerahat vor Akşam).
-    struct Target { let title: String; let subtitle: String; let date: Date; let symbol: String; let kerahat: Bool }
+    struct Target { let title: String; let subtitle: String; let date: Date; let symbol: String; let kerahat: Bool; var untilKerahat = false }
 
     var target: Target? {
         if let k = activeKerahat {
             if let n = next, abs(n.date.timeIntervalSince(k.end)) < 61 {
-                return Target(title: n.vakit.tr, subtitle: "Kerahat, \(n.vakit.de) um \(hm(n.date))", date: n.date, symbol: n.vakit.symbol, kerahat: true)
+                return Target(title: n.vakit.name, subtitle: "\(nameStyle.kerahat), \(n.vakit.name) um \(hm(n.date))", date: n.date, symbol: n.vakit.symbol, kerahat: true)
             }
-            return Target(title: "Kerahat", subtitle: "\(k.label), endet um \(hm(k.end))", date: k.end, symbol: "hourglass", kerahat: true)
+            return Target(title: nameStyle.kerahat, subtitle: "\(k.label), endet um \(hm(k.end))", date: k.end, symbol: "hourglass", kerahat: true)
         }
         guard let n = next else { return nil }
         if let k = nextKerahat, k.start < n.date {
-            let vakit = current.map { "\($0.vakit.tr)-Zeit" } ?? "Zeit"
-            return Target(title: "Bis Kerahat", subtitle: "\(vakit) endet um \(hm(k.start))", date: k.start, symbol: "hourglass", kerahat: false)
+            let vakit = current.map { "\($0.vakit.name)-Zeit" } ?? "Zeit"
+            return Target(title: "Bis \(nameStyle.kerahat)", subtitle: "\(vakit) endet um \(hm(k.start))", date: k.start, symbol: "hourglass", kerahat: false, untilKerahat: true)
         }
-        return Target(title: n.vakit.tr, subtitle: "\(n.vakit.de) um \(hm(n.date))", date: n.date, symbol: n.vakit.symbol, kerahat: false)
+        return Target(title: n.vakit.name, subtitle: "\(n.vakit.hint) um \(hm(n.date))", date: n.date, symbol: n.vakit.symbol, kerahat: false)
     }
 
     var menuTitle: String {
         guard let t = target else { return loading ? "Lade…" : "Keine Daten" }
-        let label = t.title == "Bis Kerahat" ? "Kerahat in" : t.title
+        let label = t.untilKerahat ? "\(nameStyle.kerahat) in" : t.title
         return "\(label) \(countdown(t.date.timeIntervalSince(now), seconds: showSeconds))"
     }
 }
@@ -495,7 +520,7 @@ struct ContentView: View {
                     HStack(spacing: 10) {
                         IconCircle(symbol: e.vakit.symbol, active: isCurrent, size: 38)
                         VStack(alignment: .leading, spacing: 0) {
-                            Text(e.vakit.tr).font(.system(size: 13, weight: .semibold))
+                            Text(e.vakit.name).font(.system(size: 13, weight: .semibold))
                             Text(hm(e.date)).font(.system(size: 13)).monospacedDigit().foregroundStyle(.secondary)
                         }
                     }
@@ -508,7 +533,7 @@ struct ContentView: View {
     private var kerahatTile: some View {
         Tile(radius: 24, padding: 14) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Kerahat").font(.system(size: 13, weight: .semibold))
+                Text(s.names.kerahat).font(.system(size: 13, weight: .semibold))
                 ForEach(s.kerahat(on: s.now), id: \.start) { k in
                     let active = k.contains(s.now)
                     HStack {
@@ -543,9 +568,14 @@ struct ContentView: View {
     private var settingsTile: some View {
         Tile(radius: 24, padding: 14) {
             VStack(alignment: .leading, spacing: 8) {
-                Stepper("Kerahat nach Sonnenaufgang: \(s.kSunrise) min", value: $s.kSunrise, in: 0...90, step: 5)
-                Stepper("Kerahat vor Öğle: \(s.kNoon) min", value: $s.kNoon, in: 0...90, step: 5)
-                Stepper("Kerahat vor Akşam: \(s.kSunset) min", value: $s.kSunset, in: 0...90, step: 5)
+                Picker("Namen", selection: $s.names) {
+                    ForEach(NameStyle.allCases, id: \.self) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                Text("z. B. \(Vakit.ikindi.name), \(Vakit.aksam.name)").font(.caption).foregroundStyle(.secondary)
+                Stepper("\(s.names.kerahat) nach Sonnenaufgang: \(s.kSunrise) min", value: $s.kSunrise, in: 0...90, step: 5)
+                Stepper("\(s.names.kerahat) vor \(Vakit.ogle.name): \(s.kNoon) min", value: $s.kNoon, in: 0...90, step: 5)
+                Stepper("\(s.names.kerahat) vor \(Vakit.aksam.name): \(s.kSunset) min", value: $s.kSunset, in: 0...90, step: 5)
                 Toggle("Sekunden in der Menüleiste", isOn: $s.showSeconds)
                 Toggle("Bei Anmeldung starten", isOn: $loginItem)
                     .onChange(of: loginItem) { on in
