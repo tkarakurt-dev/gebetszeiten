@@ -70,6 +70,62 @@ UPDATES
 -------
 Ab Version 1.1 aktualisiert sich die App selbst. Nichts zu tun.
 TXT
+cat > "$OUT/Sådan installerer du appen.txt" <<'TXT'
+BØNNETIDER TIL MAC
+IGMG-bønnetider, nedtælling og kerahat-tider i menulinjen.
+Kører fra macOS 13 (Liquid Glass-design fra macOS 26), på Apple-chip og Intel.
+
+
+TRIN 1: Træk appen til "Programmer"
+-----------------------------------
+Træk Gebetszeiten.app til mappen "Programmer".
+Har du allerede en ældre version: Luk den først (klik på månen
+øverst til højre, derefter på tænd/sluk-knappen nederst) og vælg
+"Erstat".
+
+
+TRIN 2: Giv tilladelse (kun første gang)
+----------------------------------------
+macOS blokerer appen ved første start, fordi den ikke kommer fra
+App Store. Vælg ÉN af de to måder:
+
+MÅDE A: Med Terminal (virker altid, tager 10 sekunder)
+  1. Tryk Cmd + mellemrum, skriv "Terminal", tryk Enter.
+  2. Indsæt denne linje og tryk Enter:
+
+     xattr -dr com.apple.quarantine /Applications/Gebetszeiten.app
+
+  3. Luk Terminal og start appen med et dobbeltklik.
+
+MÅDE B: Uden Terminal
+  1. Dobbeltklik på Gebetszeiten i "Programmer".
+     Der kommer en besked om, at appen ikke kan åbnes. Luk beskeden.
+  2. Åbn med det samme: Systemindstillinger > Anonymitet og sikkerhed
+     og rul helt ned.
+  3. Under "Sikkerhed" står der nu, at Gebetszeiten blev blokeret.
+     Klik på "Åbn alligevel" og bekræft med adgangskode eller Touch ID.
+  Vigtigt: Knappen "Åbn alligevel" vises kun kort tid efter
+  startforsøget. Er den der ikke, så gentag punkt 1.
+  Står der i beskeden, at appen er "beskadiget", virker kun måde A.
+
+
+TRIN 3: Kom i gang
+------------------
+- Øverst til højre i menulinjen vises en måne med nedtælling.
+- Ved første start spørger macOS om din placering: klik "Tillad".
+  Appen vælger så den nærmeste IGMG-by. Vælg selv en by: klik på
+  bynavnet øverst til venstre i vinduet.
+- Appen findes på engelsk, tysk, tyrkisk og arabisk (ikke dansk).
+  Sproget vælges under "Settings" > "Language".
+- Under "Settings" kan du også vælge bønnernes navne
+  (f.eks. Maghrib, Akşam eller المغرب), længden af kerahat-tiderne
+  og "Open at login" (anbefales).
+
+
+OPDATERINGER
+------------
+Appen opdaterer sig selv. Du skal ikke gøre noget.
+TXT
 rm -rf "$OUT/tmp"
 ditto -c -k --sequesterRsrc --keepParent "$OUT" Gebetszeiten.zip
 rm -rf "$OUT"

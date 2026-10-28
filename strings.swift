@@ -10,12 +10,12 @@ enum AppLang: String, CaseIterable {
     var locale: Locale { Locale(identifier: ["de": "de_DE", "tr": "tr_TR", "en": "en_GB", "ar": "ar@numbers=latn"][rawValue]!) }
     var rtl: Bool { self == .ar }
 
-    /// Systemsprache, falls unterstützt, sonst Deutsch
+    /// Systemsprache, falls unterstützt, sonst Englisch
     static var system: AppLang {
         for id in Locale.preferredLanguages {
             if let l = AppLang(rawValue: String(id.prefix(2))) { return l }
         }
-        return .de
+        return .en
     }
 }
 
