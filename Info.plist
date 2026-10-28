@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key><string>Gebetszeiten</string>
+  <key>CFBundleDisplayName</key><string>Gebetszeiten</string>
+  <key>CFBundleIdentifier</key><string>de.tk-systemkontor.gebetszeiten</string>
+  <key>CFBundleVersion</key><string>2</string>
+  <key>CFBundleShortVersionString</key><string>1.1</string>
+  <key>CFBundleExecutable</key><string>Gebetszeiten</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleIconFile</key><string>Gebetszeiten</string>
+  <key>LSMinimumSystemVersion</key><string>13.0</string>
+  <key>LSUIElement</key><true/>
+  <key>NSHighResolutionCapable</key><true/>
+  <key>NSLocationUsageDescription</key><string>Gebetszeiten nutzt deinen ungefähren Standort, um die nächste IGMG-Stadt für die Gebetszeiten einzustellen.</string>
+  <key>NSLocationWhenInUseUsageDescription</key><string>Gebetszeiten nutzt deinen ungefähren Standort, um die nächste IGMG-Stadt für die Gebetszeiten einzustellen.</string>
+</dict>
+</plist>
