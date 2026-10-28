@@ -19,6 +19,7 @@ enum Vakit: Int, CaseIterable {
     var ar: String { ["Fajr", "Shuruq", "Dhuhr", "Asr", "Maghrib", "Isha"][rawValue] }
     var arab: String { ["الفجر", "الشروق", "الظهر", "العصر", "المغرب", "العشاء"][rawValue] }
     var de: String { ["Morgen", "Sonnenaufgang", "Mittag", "Nachmittag", "Abend", "Nacht"][rawValue] }
+    var en: String { ["Dawn", "Sunrise", "Noon", "Afternoon", "Sunset", "Night"][rawValue] }
 
     /// Name in der gewählten Schreibweise
     var name: String {
@@ -27,27 +28,42 @@ enum Vakit: Int, CaseIterable {
         case .ar: return ar
         case .arab: return arab
         case .de: return de
+        case .en: return en
         }
     }
-    /// Zweitname in Klein (Deutsch, bei deutscher Auswahl der türkische)
-    var hint: String { nameStyle == .de ? tr : de }
+    /// Zweitname in der Oberflächensprache, leer wenn er dem Namen entspricht
+    var hint: String {
+        let local: String
+        switch appLang {
+        case .de: local = de
+        case .tr: local = tr
+        case .en: local = en
+        case .ar: local = arab
+        }
+        return local == name ? "" : local
+    }
 }
 
 /// Wie die Gebete heißen: türkisch (İkindi, Akşam), arabisch (Asr, Maghrib) oder deutsch
 enum NameStyle: String, CaseIterable {
-    case tr, ar, arab, de
-    var label: String { ["tr": "Türkisch (Akşam)", "ar": "Arabisch, Umschrift (Maghrib)", "arab": "Arabisch, Schrift (المغرب)", "de": "Deutsch (Abend)"][rawValue]! }
+    case tr, ar, arab, de, en
+    var label: String {
+        L(["tr": "Türkisch (Akşam)", "ar": "Arabisch, Umschrift (Maghrib)", "arab": "Arabisch, Schrift (المغرب)",
+           "de": "Deutsch (Abend)", "en": "Englisch (Sunset)"][rawValue]!)
+    }
     /// Wort für die Zeiten ohne Gebet
     var kerahat: String {
         switch self {
-        case .ar: return "Makruh"
+        case .ar, .en: return "Makruh"
         case .arab: return "مكروه"
         default: return "Kerahat"
         }
     }
 }
 
-var nameStyle = NameStyle(rawValue: UserDefaults.standard.string(forKey: "names") ?? "") ?? .tr
+/// Ohne eigene Wahl passend zur Sprache: Arabisch in Schrift, Englisch in Umschrift, sonst türkisch
+var nameStyle = NameStyle(rawValue: UserDefaults.standard.string(forKey: "names") ?? "")
+    ?? [AppLang.ar: NameStyle.arab, .en: .ar][appLang] ?? .tr
 
 struct Event { let vakit: Vakit; let date: Date }
 
@@ -127,7 +143,7 @@ func countdown(_ secs: TimeInterval, seconds: Bool = true) -> String {
     let h = s / 3600, m = (s % 3600) / 60, sec = s % 60
     if !seconds {
         let mm = (s + 59) / 60
-        return mm >= 60 ? String(format: "%d:%02d h", mm / 60, mm % 60) : "\(mm) min"
+        return mm >= 60 ? String(format: "%d:%02d ", mm / 60, mm % 60) + L("h") : "\(mm) " + L("min")
     }
     return h > 0 ? String(format: "%d:%02d:%02d", h, m, sec) : String(format: "%d:%02d", m, sec)
 }
@@ -179,6 +195,9 @@ final class Store: ObservableObject {
     @Published var maxHeight: CGFloat = 2000
     @Published var names: NameStyle = nameStyle {
         didSet { nameStyle = names; UserDefaults.standard.set(names.rawValue, forKey: "names") }
+    }
+    @Published var lang: AppLang = appLang {
+        didSet { appLang = lang; UserDefaults.standard.set(lang.rawValue, forKey: "lang"); locationNote = nil }
     }
 
     // Kerahat-Fenster in Minuten (Standard nach Diyanet/IGMG-Praxis: ca. 45 Minuten)
@@ -255,8 +274,8 @@ final class Store: ObservableObject {
             } catch {
                 guard target == city else { return }
                 self.error = days[dayKey(now)] == nil
-                    ? "IGMG nicht erreichbar, keine Zeiten für heute."
-                    : "IGMG nicht erreichbar, zeige gespeicherte Zeiten."
+                    ? L("IGMG nicht erreichbar, keine Zeiten für heute.")
+                    : L("IGMG nicht erreichbar, zeige gespeicherte Zeiten.")
             }
             loading = false
         }
@@ -279,9 +298,9 @@ final class Store: ObservableObject {
         guard let e = events(on: day), e.count == 6 else { return [] }
         let m = { (min: Int) in TimeInterval(min * 60) }
         return [
-            Kerahat(label: "nach Sonnenaufgang", start: e[1].date, end: e[1].date + m(kSunrise)),
-            Kerahat(label: "vor \(Vakit.ogle.name) (Istiwa)", start: e[2].date - m(kNoon), end: e[2].date),
-            Kerahat(label: "vor Sonnenuntergang", start: e[4].date - m(kSunset), end: e[4].date),
+            Kerahat(label: L("nach Sonnenaufgang"), start: e[1].date, end: e[1].date + m(kSunrise)),
+            Kerahat(label: L("vor %@ (Istiwa)", Vakit.ogle.name), start: e[2].date - m(kNoon), end: e[2].date),
+            Kerahat(label: L("vor Sonnenuntergang"), start: e[4].date - m(kSunset), end: e[4].date),
         ]
     }
 
@@ -309,21 +328,21 @@ final class Store: ObservableObject {
     var target: Target? {
         if let k = activeKerahat {
             if let n = next, abs(n.date.timeIntervalSince(k.end)) < 61 {
-                return Target(title: n.vakit.name, subtitle: "\(nameStyle.kerahat), \(n.vakit.name) um \(hm(n.date))", date: n.date, symbol: n.vakit.symbol, kerahat: true)
+                return Target(title: n.vakit.name, subtitle: L("%@, %@ um %@", nameStyle.kerahat, n.vakit.name, hm(n.date)), date: n.date, symbol: n.vakit.symbol, kerahat: true)
             }
-            return Target(title: nameStyle.kerahat, subtitle: "\(k.label), endet um \(hm(k.end))", date: k.end, symbol: "hourglass", kerahat: true)
+            return Target(title: nameStyle.kerahat, subtitle: L("%@, endet um %@", k.label, hm(k.end)), date: k.end, symbol: "hourglass", kerahat: true)
         }
         guard let n = next else { return nil }
         if let k = nextKerahat, k.start < n.date {
-            let vakit = current.map { "\($0.vakit.name)-Zeit" } ?? "Zeit"
-            return Target(title: "Bis \(nameStyle.kerahat)", subtitle: "\(vakit) endet um \(hm(k.start))", date: k.start, symbol: "hourglass", kerahat: false, untilKerahat: true)
+            let ends = current.map { L("%@-Zeit endet um %@", $0.vakit.name, hm(k.start)) } ?? L("Endet um %@", hm(k.start))
+            return Target(title: L("Bis %@", nameStyle.kerahat), subtitle: ends, date: k.start, symbol: "hourglass", kerahat: false, untilKerahat: true)
         }
-        return Target(title: n.vakit.name, subtitle: "\(n.vakit.hint) um \(hm(n.date))", date: n.date, symbol: n.vakit.symbol, kerahat: false)
+        return Target(title: n.vakit.name, subtitle: n.vakit.hint.isEmpty ? L("um %@", hm(n.date)) : L("%@ um %@", n.vakit.hint, hm(n.date)), date: n.date, symbol: n.vakit.symbol, kerahat: false)
     }
 
     var menuTitle: String {
-        guard let t = target else { return loading ? "Lade…" : "Keine Daten" }
-        let label = t.untilKerahat ? "\(nameStyle.kerahat) in" : t.title
+        guard let t = target else { return loading ? L("Lade…") : L("Keine Daten") }
+        let label = t.untilKerahat ? L("%@ in", nameStyle.kerahat) : t.title
         return "\(label) \(countdown(t.date.timeIntervalSince(now), seconds: showSeconds))"
     }
 }
@@ -443,6 +462,8 @@ struct ContentView: View {
         .padding(14)
         .frame(width: 340)
         .frame(maxHeight: s.maxHeight)
+        .environment(\.layoutDirection, s.lang.rtl ? .rightToLeft : .leftToRight)
+        .environment(\.locale, s.lang.locale)
     }
 
     private var middle: some View {
@@ -472,9 +493,9 @@ struct ContentView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("Stadt wählen")
+            .help(L("Stadt wählen"))
             Spacer()
-            Text(s.now.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(Locale(identifier: "de_DE"))))
+            Text(s.now.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(s.lang.locale)))
                 .font(.subheadline).foregroundStyle(.secondary)
         }
         .padding(.horizontal, 6)
@@ -488,13 +509,13 @@ struct ContentView: View {
                     s.autoLocation = on
                     if on { NotificationCenter.default.post(name: .requestLocation, object: nil) }
                 })) {
-                    Label("Automatisch per Standort", systemImage: "location.fill").font(.system(size: 12, weight: .medium))
+                    Label(L("Automatisch per Standort"), systemImage: "location.fill").font(.system(size: 12, weight: .medium))
                 }
                 .toggleStyle(.switch).controlSize(.small)
                 if let note = s.locationNote {
                     Text(note).font(.caption).foregroundStyle(.secondary)
                 }
-                TextField("Stadt suchen, z. B. Berlin", text: $query)
+                TextField(L("Stadt suchen, z. B. Berlin"), text: $query)
                     .textFieldStyle(.plain)
                     .font(.system(size: 13))
                     .padding(.horizontal, 12).padding(.vertical, 7)
@@ -535,7 +556,7 @@ struct ContentView: View {
                         .padding(.leading, 2)
                 }
             } else {
-                Text(s.loading ? "Lade Gebetszeiten…" : "Keine Gebetszeiten vorhanden").foregroundStyle(.secondary)
+                Text(s.loading ? L("Lade Gebetszeiten…") : L("Keine Gebetszeiten vorhanden")).foregroundStyle(.secondary)
             }
         }
     }
@@ -566,7 +587,7 @@ struct ContentView: View {
                 ForEach(s.kerahat(on: s.now), id: \.start) { k in
                     let active = k.contains(s.now)
                     HStack {
-                        Text("\(hm(k.start)) bis \(hm(k.end))").monospacedDigit()
+                        Text(L("%@ bis %@", hm(k.start), hm(k.end))).monospacedDigit()
                         Spacer()
                         Text(k.label)
                     }
@@ -583,11 +604,11 @@ struct ContentView: View {
             HStack(spacing: 10) {
                 IconCircle(symbol: "arrow.down", active: true, size: 34)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("Version \(info.version) ist da").font(.system(size: 13, weight: .semibold))
-                    Text(u.status ?? info.notes ?? "Neue Version installieren").font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                    Text(L("Version %@ ist da", info.version)).font(.system(size: 13, weight: .semibold))
+                    Text(u.status ?? info.notes ?? L("Neue Version installieren")).font(.caption).foregroundStyle(.secondary).lineLimit(2)
                 }
                 Spacer()
-                Button(u.busy ? "…" : "Installieren") { u.install() }
+                Button(u.busy ? "…" : L("Installieren")) { u.install() }
                     .disabled(u.busy)
                     .controlSize(.small)
             }
@@ -597,24 +618,28 @@ struct ContentView: View {
     private var settingsTile: some View {
         Tile(radius: 24, padding: 14) {
             VStack(alignment: .leading, spacing: 8) {
-                Picker("Namen", selection: $s.names) {
+                Picker(L("Sprache"), selection: $s.lang) {
+                    ForEach(AppLang.allCases, id: \.self) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.menu)
+                Picker(L("Namen"), selection: $s.names) {
                     ForEach(NameStyle.allCases, id: \.self) { Text($0.label).tag($0) }
                 }
                 .pickerStyle(.menu)
-                Stepper("\(s.names.kerahat) nach Sonnenaufgang: \(s.kSunrise) min", value: $s.kSunrise, in: 0...90, step: 5)
-                Stepper("\(s.names.kerahat) vor \(Vakit.ogle.name): \(s.kNoon) min", value: $s.kNoon, in: 0...90, step: 5)
-                Stepper("\(s.names.kerahat) vor \(Vakit.aksam.name): \(s.kSunset) min", value: $s.kSunset, in: 0...90, step: 5)
-                Toggle("Sekunden in der Menüleiste", isOn: $s.showSeconds)
-                Toggle("Bei Anmeldung starten", isOn: $loginItem)
+                Stepper(L("%@ nach Sonnenaufgang: %d min", s.names.kerahat, s.kSunrise), value: $s.kSunrise, in: 0...90, step: 5)
+                Stepper(L("%@ vor %@: %d min", s.names.kerahat, Vakit.ogle.name, s.kNoon), value: $s.kNoon, in: 0...90, step: 5)
+                Stepper(L("%@ vor %@: %d min", s.names.kerahat, Vakit.aksam.name, s.kSunset), value: $s.kSunset, in: 0...90, step: 5)
+                Toggle(L("Sekunden in der Menüleiste"), isOn: $s.showSeconds)
+                Toggle(L("Bei Anmeldung starten"), isOn: $loginItem)
                     .onChange(of: loginItem) { on in
                         do { on ? try SMAppService.mainApp.register() : try SMAppService.mainApp.unregister() }
                         catch { loginItem = SMAppService.mainApp.status == .enabled }
                     }
-                Toggle("Updates automatisch installieren", isOn: $u.auto)
+                Toggle(L("Updates automatisch installieren"), isOn: $u.auto)
                 HStack {
-                    Text("Version \(u.currentVersion)").foregroundStyle(.secondary)
+                    Text(L("Version %@", u.currentVersion)).foregroundStyle(.secondary)
                     Spacer()
-                    Button("Nach Updates suchen") { u.check(manual: true) }.disabled(u.busy)
+                    Button(L("Nach Updates suchen")) { u.check(manual: true) }.disabled(u.busy)
                 }
                 if let st = u.status, u.available == nil { Text(st).font(.caption).foregroundStyle(.secondary) }
             }
@@ -627,13 +652,13 @@ struct ContentView: View {
     private var footer: some View {
         VStack(spacing: 8) {
             HStack {
-                CircleButton(symbol: "arrow.clockwise", help: "Neu von IGMG laden") { s.refresh() }
+                CircleButton(symbol: "arrow.clockwise", help: L("Neu von IGMG laden")) { s.refresh() }
                     .disabled(s.loading)
                 Spacer()
                 Button {
                     withAnimation(.spring(duration: 0.3)) { settingsOpen.toggle(); if settingsOpen { pickerOpen = false } }
                 } label: {
-                    Text(settingsOpen ? "Fertig" : "Einstellungen")
+                    Text(settingsOpen ? L("Fertig") : L("Einstellungen"))
                         .font(.system(size: 13, weight: .medium))
                         .padding(.horizontal, 16).padding(.vertical, 7)
                         .background(Glass(cornerRadius: 16))
@@ -642,12 +667,12 @@ struct ContentView: View {
                 }
                 .buttonStyle(.plain)
                 Spacer()
-                CircleButton(symbol: "power", help: "Beenden") { NSApp.terminate(nil) }
+                CircleButton(symbol: "power", help: L("Beenden")) { NSApp.terminate(nil) }
             }
             Button {
                 NSWorkspace.shared.open(s.city.pageURL)
             } label: {
-                Text("Quelle IGMG" + (s.lastFetch.map { ", Stand " + $0.formatted(.dateTime.day().month(.twoDigits).hour().minute().locale(Locale(identifier: "de_DE"))) } ?? ""))
+                Text(L("Quelle IGMG") + (s.lastFetch.map { L(", Stand %@", $0.formatted(.dateTime.day().month(.twoDigits).hour().minute().locale(s.lang.locale))) } ?? ""))
                     .font(.caption2).foregroundStyle(.tertiary)
             }
             .buttonStyle(.plain)
@@ -696,7 +721,7 @@ final class Updater: ObservableObject {
         guard !busy else { return }
         lastCheck = Date()
         busy = true
-        if manual { status = "Suche nach Updates…" }
+        if manual { status = L("Suche nach Updates…") }
         Task {
             defer { busy = false }
             do {
@@ -711,10 +736,10 @@ final class Updater: ObservableObject {
                     if auto && !manual { busy = false; install() }
                 } else {
                     available = nil
-                    status = manual ? "Du hast die neueste Version (\(currentVersion))." : nil
+                    status = manual ? L("Du hast die neueste Version (%@).", currentVersion) : nil
                 }
             } catch {
-                if manual { status = "Update-Prüfung fehlgeschlagen." }
+                if manual { status = L("Update-Prüfung fehlgeschlagen.") }
             }
         }
     }
@@ -722,13 +747,13 @@ final class Updater: ObservableObject {
     func install() {
         guard let info = available, !busy else { return }
         busy = true
-        status = "Lade Version \(info.version)…"
+        status = L("Lade Version %@…", info.version)
         Task {
             do {
                 let (file, _) = try await URLSession.shared.download(from: info.url)
                 let data = try Data(contentsOf: file)
                 let hash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-                guard hash == info.sha256.lowercased() else { throw UpdateError("Prüfsumme stimmt nicht") }
+                guard hash == info.sha256.lowercased() else { throw UpdateError(L("Prüfsumme stimmt nicht")) }
 
                 let work = FileManager.default.temporaryDirectory.appendingPathComponent("gebetszeiten-update-\(UUID().uuidString)")
                 try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
@@ -738,11 +763,11 @@ final class Updater: ObservableObject {
                 guard let newApp = FileManager.default.enumerator(at: work.appendingPathComponent("x"), includingPropertiesForKeys: nil)?
                         .compactMap({ $0 as? URL }).first(where: { $0.lastPathComponent == "Gebetszeiten.app" }),
                       Bundle(url: newApp)?.bundleIdentifier == Bundle.main.bundleIdentifier
-                else { throw UpdateError("Paket unvollständig") }
+                else { throw UpdateError(L("Paket unvollständig")) }
 
                 let target = Bundle.main.bundleURL
                 guard FileManager.default.isWritableFile(atPath: target.deletingLastPathComponent().path) else {
-                    throw UpdateError("Keine Schreibrechte für \(target.deletingLastPathComponent().path)")
+                    throw UpdateError(L("Keine Schreibrechte für %@", target.deletingLastPathComponent().path))
                 }
                 // Nach dem Beenden: alte App ersetzen, Download-Sperre entfernen, neu starten
                 let script = """
@@ -756,10 +781,10 @@ final class Updater: ObservableObject {
                 p.executableURL = URL(fileURLWithPath: "/bin/sh")
                 p.arguments = ["-c", script]
                 try p.run()
-                status = "Starte neu…"
+                status = L("Starte neu…")
                 NSApp.terminate(nil)
             } catch {
-                status = "Update fehlgeschlagen: \((error as? UpdateError)?.message ?? error.localizedDescription)"
+                status = L("Update fehlgeschlagen: %@", (error as? UpdateError)?.message ?? error.localizedDescription)
                 busy = false
             }
         }
@@ -771,7 +796,7 @@ final class Updater: ObservableObject {
         p.arguments = args
         try p.run()
         p.waitUntilExit()
-        if p.terminationStatus != 0 { throw UpdateError("Entpacken fehlgeschlagen") }
+        if p.terminationStatus != 0 { throw UpdateError(L("Entpacken fehlgeschlagen")) }
     }
 }
 
@@ -804,7 +829,7 @@ final class Locator: NSObject, CLLocationManagerDelegate {
         switch manager.authorizationStatus {
         case .notDetermined: manager.requestWhenInUseAuthorization()
         case .denied, .restricted:
-            store.locationNote = "Standortzugriff ist aus. Freigeben unter Systemeinstellungen > Datenschutz & Sicherheit > Ortungsdienste."
+            store.locationNote = L("Standortzugriff ist aus. Freigeben unter Systemeinstellungen > Datenschutz & Sicherheit > Ortungsdienste.")
         default: start()
         }
     }
@@ -820,7 +845,7 @@ final class Locator: NSObject, CLLocationManagerDelegate {
             switch m.authorizationStatus {
             case .authorized, .authorizedAlways: if store.autoLocation { start() }
             case .denied, .restricted:
-                store.locationNote = "Standortzugriff ist aus. Freigeben unter Systemeinstellungen > Datenschutz & Sicherheit > Ortungsdienste."
+                store.locationNote = L("Standortzugriff ist aus. Freigeben unter Systemeinstellungen > Datenschutz & Sicherheit > Ortungsdienste.")
             default: break
             }
         }
@@ -831,7 +856,7 @@ final class Locator: NSObject, CLLocationManagerDelegate {
             guard let loc = locations.last, loc.horizontalAccuracy >= 0, loc.horizontalAccuracy < 5000 else { return }
             m.stopUpdatingLocation()
             guard store.autoLocation, let hit = Cities.nearest(to: loc) else { return }
-            store.locationNote = hit.km < 1.5 ? "Standort: \(hit.city.name)" : "Standort: \(hit.city.name), \(Int(hit.km.rounded())) km entfernt"
+            store.locationNote = hit.km < 1.5 ? L("Standort: %@", hit.city.name) : L("Standort: %@, %d km entfernt", hit.city.name, Int(hit.km.rounded()))
             store.setCity(hit.city)
         }
     }
@@ -841,7 +866,7 @@ final class Locator: NSObject, CLLocationManagerDelegate {
         if (error as? CLError)?.code == .locationUnknown { return }
         MainActor.assumeIsolated {
             m.stopUpdatingLocation()
-            store.locationNote = "Standort gerade nicht bestimmbar, es bleibt \(store.city.name)."
+            store.locationNote = L("Standort gerade nicht bestimmbar, es bleibt %@.", store.city.name)
         }
     }
 }

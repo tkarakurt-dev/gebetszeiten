@@ -7,8 +7,8 @@ FLAGS=(-O -swift-version 5 -Xlinker -platform_version -Xlinker macos -Xlinker 13
        -framework AppKit -framework SwiftUI -framework ServiceManagement -framework CoreLocation)
 OUT=Gebetszeiten-Mac
 rm -rf "$OUT" && mkdir -p "$OUT/tmp"
-swiftc -target arm64-apple-macos13.0 "${FLAGS[@]}" -o "$OUT/tmp/arm64" main.swift
-swiftc -target x86_64-apple-macos13.0 "${FLAGS[@]}" -o "$OUT/tmp/x86_64" main.swift
+swiftc -target arm64-apple-macos13.0 "${FLAGS[@]}" -o "$OUT/tmp/arm64" main.swift strings.swift
+swiftc -target x86_64-apple-macos13.0 "${FLAGS[@]}" -o "$OUT/tmp/x86_64" main.swift strings.swift
 APP="$OUT/Gebetszeiten.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp Info.plist "$APP/Contents/Info.plist"
