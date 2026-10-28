@@ -16,7 +16,7 @@ cp Gebetszeiten.icns cities.json "$APP/Contents/Resources/"
 lipo -create "$OUT/tmp/arm64" "$OUT/tmp/x86_64" -output "$APP/Contents/MacOS/Gebetszeiten"
 codesign --force --sign - "$APP"
 cat > "$OUT/So installierst du die App.txt" <<'TXT'
-Gebetszeiten für den Mac (IGMG, Hamburg)
+Gebetszeiten für den Mac (IGMG, Stadt per Standort oder Auswahl)
 
 1. Gebetszeiten.app in den Ordner "Programme" ziehen.
 2. Programm "Terminal" öffnen (Spotlight: Cmd + Leertaste, "Terminal"),
