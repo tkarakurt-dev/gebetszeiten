@@ -919,7 +919,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                            styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.isOpaque = false
         panel.backgroundColor = .clear
-        panel.hasShadow = true
+        // Liquid Glass zeichnet seinen Schatten selbst; der Fensterschatten wäre rechteckig und zeigt helle Ecken
+        panel.hasShadow = NSClassFromString("NSGlassEffectView") == nil
         panel.level = .popUpMenu
         panel.collectionBehavior = [.canJoinAllSpaces, .transient, .ignoresCycle]
         panel.hidesOnDeactivate = false

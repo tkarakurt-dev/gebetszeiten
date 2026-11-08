@@ -1,7 +1,7 @@
 {
-  "build": 7,
-  "version": "1.6",
-  "url": "https://github.com/tkarakurt-dev/gebetszeiten/releases/download/v1.6/Gebetszeiten.zip",
-  "sha256": "1dc71db14b1be81690f1f1a71caabe41c146a2e49770103a23d52dfb0d7f8c99",
-  "notes": "Behebt fehlende Gebetszeiten nach dem Umbau der IGMG-Website"
+  "build": 8,
+  "version": "1.7",
+  "url": "https://github.com/tkarakurt-dev/gebetszeiten/releases/download/v1.7/Gebetszeiten.zip",
+  "sha256": "896b0069fa1c0abe89516ea6af6680d6accef19abcbdceb2ac3714b14f49e0ba",
+  "notes": "Saubere runde Fensterecken"
 }
