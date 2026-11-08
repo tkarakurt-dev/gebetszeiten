@@ -151,30 +151,31 @@ func countdown(_ secs: TimeInterval, seconds: Bool = true) -> String {
 // MARK: - Daten (IGMG-Abruf + Cache)
 
 enum IGMG {
+    private struct Month: Decodable {
+        struct Day: Decodable { let date: String; let times: [String: String] }
+        let days: [Day]
+    }
+    private static let keys = ["fajr", "sunrise", "dhuhr", "asr", "maghrib", "ishaa"]
+
+    /// Neue IGMG-Schnittstelle (seit Website-Umbau 11/2026): Monat als JSON, Datum im Format JJJJ-MM-TT
     static func fetchMonth(city: City, year: Int, month: Int) async throws -> [String: [String]] {
-        var req = URLRequest(url: apiURL, timeoutInterval: 20)
-        req.httpMethod = "POST"
-        req.setValue("application/x-www-form-urlencoded; charset=UTF-8", forHTTPHeaderField: "Content-Type")
-        req.setValue("XMLHttpRequest", forHTTPHeaderField: "X-Requested-With")
-        req.setValue(city.pageURL.absoluteString, forHTTPHeaderField: "Referer")
+        let ym = String(format: "%04d-%02d", year, month)
+        var req = URLRequest(url: URL(string: "https://www.igmg.org/wp-json/igmg-gebetszeiten/v1/month?city=\(city.id)&month=\(ym)&lang=de")!, timeoutInterval: 20)
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
         req.setValue("Mozilla/5.0 (Macintosh) Gebetszeiten", forHTTPHeaderField: "User-Agent")
-        req.httpBody = "show_ajax_variable=\(city.id)&show_month=\(month)&show_year=\(year)&lang=de".data(using: .utf8)
-        let (data, _) = try await URLSession.shared.data(for: req)
-        let days = parse(String(decoding: data, as: UTF8.self))
+        let (data, resp) = try await URLSession.shared.data(for: req)
+        guard (resp as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
+        let days = parse(data)
         if days.isEmpty { throw URLError(.cannotParseResponse) }
         return days
     }
 
-    static func parse(_ html: String) -> [String: [String]] {
-        let row = try! NSRegularExpression(pattern: #"class="tarih">(\d{2})\.(\d{2})\.(\d{4})</span>((?:\s*<span class="\w+_time">\d{2}:\d{2}</span>){6})"#)
-        let time = try! NSRegularExpression(pattern: #"\d{2}:\d{2}"#)
-        let ns = html as NSString
+    static func parse(_ data: Data) -> [String: [String]] {
+        guard let month = try? JSONDecoder().decode(Month.self, from: data) else { return [:] }
         var out: [String: [String]] = [:]
-        for m in row.matches(in: html, range: NSRange(location: 0, length: ns.length)) {
-            let d = ns.substring(with: m.range(at: 1)), mo = ns.substring(with: m.range(at: 2)), y = ns.substring(with: m.range(at: 3))
-            let block = ns.substring(with: m.range(at: 4)) as NSString
-            let times = time.matches(in: block as String, range: NSRange(location: 0, length: block.length)).map { block.substring(with: $0.range) }
-            if times.count == 6 { out["\(y)-\(mo)-\(d)"] = times }
+        for d in month.days {
+            let times = keys.compactMap { d.times[$0] }
+            if times.count == 6 { out[d.date] = times }
         }
         return out
     }
@@ -259,8 +260,10 @@ final class Store: ObservableObject {
         Task {
             do {
                 var merged = days
-                for c in [thisMonth, next] {
-                    merged.merge(try await IGMG.fetchMonth(city: target, year: c.year!, month: c.month!)) { _, new in new }
+                merged.merge(try await IGMG.fetchMonth(city: target, year: thisMonth.year!, month: thisMonth.month!)) { _, new in new }
+                // Der Folgemonat ist nur für den Monatswechsel nötig und darf den aktuellen nicht verhindern
+                if let more = try? await IGMG.fetchMonth(city: target, year: next.year!, month: next.month!) {
+                    merged.merge(more) { _, new in new }
                 }
                 guard target == city else { return } // Stadt wurde inzwischen gewechselt
                 // Alte Tage (älter als 40 Tage) aus dem Cache werfen

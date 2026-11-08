@@ -1,7 +1,7 @@
 {
-  "build": 6,
-  "version": "1.5",
-  "url": "https://github.com/tkarakurt-dev/gebetszeiten/releases/download/v1.5/Gebetszeiten.zip",
-  "sha256": "791f5e090315b0a0387bd119206848d8ecbdddaf86f416094057433d14eb5ea5",
-  "notes": "Downloads werden gezählt, Englisch als Standard für andere Systemsprachen"
+  "build": 7,
+  "version": "1.6",
+  "url": "https://github.com/tkarakurt-dev/gebetszeiten/releases/download/v1.6/Gebetszeiten.zip",
+  "sha256": "1dc71db14b1be81690f1f1a71caabe41c146a2e49770103a23d52dfb0d7f8c99",
+  "notes": "Behebt fehlende Gebetszeiten nach dem Umbau der IGMG-Website"
 }
